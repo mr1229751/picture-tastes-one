@@ -830,58 +830,61 @@ def build():
         ImageFilter.GaussianBlur(2.6 * SS)))
 
     hero_img = hero()
-    hw = CW * 0.352
+    hw = CW * 0.360
     hh = hw * hero_img.height / hero_img.width
     hero_img = hero_img.resize((int(hw), int(hh)), Image.LANCZOS)
+    # a strawberry cannot stand on its point: tip it over so it lies on the
+    # plate with the shoulder and the tip both in contact
+    hero_img = hero_img.rotate(-27, resample=Image.BICUBIC, expand=True)
+    hero_img = hero_img.crop(hero_img.getbbox())
 
-    hx = CW * 0.500 - hero_img.width / 2 + CW * 0.012
-    # tip rests just in front of the plate's centre line, so contact is visible
-    tip_y = CH * 0.806
+    tip_y = CH * 0.812
+    hx = CW * 0.500 - hero_img.width / 2
     hy = tip_y - hero_img.height
 
-    # ambient occlusion: hard core at the contact, penumbra falling to the
-    # lower right (away from the upper-left key)
+    # Contact shadow. Real grounding needs three things at once: a hard,
+    # tight core that touches the tip, a soft penumbra falling away from the
+    # key, and no lightness gap between the two.
+    # the berry lies along the plate, so the contact patch is long and low:
+    # a hard core under the whole footprint, penumbra thrown to the right
+    common_x = hx + hero_img.width * 0.44
     canvas = Image.alpha_composite(canvas, blob(
-        (CW, CH), (hx + hero_img.width * 0.49, tip_y + CH * 0.002),
-        (hero_img.width * 0.105, CH * 0.0125),
-        (20, 6, 4), peak=250, blur=3.5 * SS, falloff=1.25))
+        (CW, CH), (common_x + hero_img.width * 0.10, tip_y + CH * 0.0045),
+        (hero_img.width * 0.395, CH * 0.0135),
+        (46, 13, 8), peak=190, blur=10 * SS, falloff=1.45))
     canvas = Image.alpha_composite(canvas, blob(
-        (CW, CH), (hx + hero_img.width * 0.545, tip_y + CH * 0.004),
-        (hero_img.width * 0.190, CH * 0.020),
-        (40, 12, 8), peak=205, blur=9 * SS, falloff=1.35))
+        (CW, CH), (hx + hero_img.width * 0.78, tip_y + CH * 0.0100),
+        (hero_img.width * 0.300, CH * 0.0240),
+        (58, 24, 14), peak=92, blur=24 * SS, falloff=1.4))
     canvas = Image.alpha_composite(canvas, blob(
-        (CW, CH), (hx + hero_img.width * 0.735, tip_y + CH * 0.002),
-        (hero_img.width * 0.330, CH * 0.028),
-        (56, 22, 13), peak=110, blur=22 * SS, falloff=1.4))
+        (CW, CH), (common_x, tip_y + CH * 0.0022),
+        (hero_img.width * 0.300, CH * 0.0050),
+        (16, 5, 3), peak=246, blur=2.2 * SS, falloff=1.15))
 
     canvas.alpha_composite(hero_img, (int(hx), int(hy)))
 
-    # glaze pooling in the tiny gap between tip and plate: this single detail
-    # is what makes the fruit read as sitting in liquid, not hovering
-    for (fx, fy, rx_, ry_, col, pk) in (
-            (0.49, 0.004, 0.055, 0.0075, (150, 26, 24), 190),
-            (0.44, 0.006, 0.026, 0.0045, (240, 196, 172), 120)):
-        canvas = Image.alpha_composite(canvas, blob(
-            (CW, CH), (hx + hero_img.width * fx, tip_y + CH * fy),
-            (hero_img.width * rx_, CH * ry_), col, peak=pk,
-            blur=2.2 * SS, falloff=1.5))
+    # glaze that has run off the fruit and pooled on the plate
+    px_pool = hx + hero_img.width * 0.245
     canvas = Image.alpha_composite(canvas, blob(
-        (CW, CH), (hx + hero_img.width * 0.455, tip_y + CH * 0.005),
-        (hero_img.width * 0.013, CH * 0.0028), (255, 250, 240), peak=235,
-        blur=0.9 * SS, falloff=1.4))
+        (CW, CH), (px_pool, tip_y + CH * 0.0035),
+        (hero_img.width * 0.085, CH * 0.0068), (142, 22, 21), peak=180,
+        blur=3.0 * SS, falloff=1.5))
+    canvas = Image.alpha_composite(canvas, blob(
+        (CW, CH), (px_pool - hero_img.width * 0.020, tip_y + CH * 0.0026),
+        (hero_img.width * 0.020, CH * 0.0026), (255, 240, 224), peak=205,
+        blur=1.1 * SS, falloff=1.4))
 
-    # two stray juice drops on the plate
-    for (fx, fy, r) in ((0.330, 0.848, 0.0074), (0.656, 0.826, 0.0052)):
-        cx, cy, rr = CW * fx, CH * fy, CW * r
-        canvas = Image.alpha_composite(canvas, blob(
-            (CW, CH), (cx + rr * 0.2, cy + rr * 0.3), (rr * 1.15, rr * 0.9),
-            (92, 12, 16), peak=120, blur=2.4 * SS, falloff=1.5))
-        canvas = Image.alpha_composite(canvas, blob(
-            (CW, CH), (cx, cy), (rr * 1.15, rr * 0.92), (168, 30, 28), peak=170,
-            blur=1.4 * SS, falloff=1.7))
-        canvas = Image.alpha_composite(canvas, blob(
-            (CW, CH), (cx - rr * 0.24, cy - rr * 0.28), (rr * 0.38, rr * 0.30),
-            (255, 240, 228), peak=240, blur=0.8 * SS, falloff=1.4))
+    # one small juice drop, well clear of the fruit
+    cx, cy, rr = CW * 0.672, CH * 0.836, CW * 0.0062
+    canvas = Image.alpha_composite(canvas, blob(
+        (CW, CH), (cx + rr * 0.2, cy + rr * 0.34), (rr * 1.05, rr * 0.82),
+        (96, 14, 18), peak=118, blur=2.2 * SS, falloff=1.5))
+    canvas = Image.alpha_composite(canvas, blob(
+        (CW, CH), (cx, cy), (rr, rr * 0.80), (176, 34, 30), peak=178,
+        blur=1.2 * SS, falloff=1.7))
+    canvas = Image.alpha_composite(canvas, blob(
+        (CW, CH), (cx - rr * 0.26, cy - rr * 0.30), (rr * 0.34, rr * 0.26),
+        (255, 242, 230), peak=242, blur=0.7 * SS, falloff=1.4))
 
     flat = canvas.convert("RGB")
     flat = flat.filter(ImageFilter.GaussianBlur(0.45 * SS))
